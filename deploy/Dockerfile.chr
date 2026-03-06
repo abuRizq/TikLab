@@ -1,0 +1,18 @@
+# CHR router container - runs QEMU with MikroTik CHR qcow2
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    qemu-system-x86 \
+    qemu-utils \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# /data: overlay.qcow2 (and base if bundled)
+# /run: runtime state
+WORKDIR /chr
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,39 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+sandbox
+
+# Test binary
+*.test
+
+# Output
+*.out
+
+# Go workspace
+go.work
+
+# IDE / Local
+.idea/
+.vscode/
+.cursor/
+.cursorrules
+tasks.md
+mikrotik-sandbox-prd.md
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config / secrets
+.env
+.env.local
+*.local
+
+# Build artifacts
+dist/
+build/
