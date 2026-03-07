@@ -183,7 +183,7 @@ func setupSandboxWithBase(t *testing.T) string {
 	if err := exec.Command("qemu-img", "create", "-f", "qcow2", basePath, "1M").Run(); err != nil {
 		t.Skipf("qemu-img not available: %v", err)
 	}
-	_, err := sandbox.Create(dir, filepath.Join(dir, "overlay", "disk.qcow2"), baseDir, false)
+	_, err := sandbox.Create(dir, filepath.Join(dir, "overlay", "disk.qcow2"), baseDir, "", "", false)
 	if err != nil {
 		t.Fatalf("setup sandbox: %v", err)
 	}

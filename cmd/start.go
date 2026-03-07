@@ -21,7 +21,7 @@ and the traffic engine. Requires a prior 'sandbox create'.`,
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger.Verbose("start: workdir=%s", cfg.WorkDir)
-		logger.Info("Starting sandbox environment...")
+		logger.Info("Starting sandbox environment (building containers if needed, first run ~5-10 min)...")
 		if err := sandbox.Start(cfg.WorkDir); err != nil {
 			return fmt.Errorf("start: %w", err)
 		}

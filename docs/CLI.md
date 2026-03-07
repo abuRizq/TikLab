@@ -13,6 +13,15 @@ The sandbox CLI provides five commands for managing a local MikroTik CHR environ
 
 ## Commands
 
+### `sandbox up`
+
+Creates the sandbox (if it does not exist) and starts it in one command. Equivalent to `create` + `start`.
+
+**Flags:**
+- `--force` — Overwrite existing sandbox before recreate
+
+---
+
 ### `sandbox create`
 
 Initializes the default `isp_small` synthetic environment.

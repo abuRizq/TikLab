@@ -29,11 +29,11 @@ func CheckAll() (*Result, error) {
 		r.OK = false
 	}
 
-	// QEMU is required for CHR VM (Linux typically has it)
-	if path, err := exec.LookPath("qemu-system-x86_64"); err == nil && path != "" {
+	// qemu-img is required for overlay creation (CHR VM runs inside its own container)
+	if path, err := exec.LookPath("qemu-img"); err == nil && path != "" {
 		r.QEMU = true
 	} else {
-		r.Missing = append(r.Missing, "qemu-system-x86_64")
+		r.Missing = append(r.Missing, "qemu-img")
 		r.OK = false
 	}
 

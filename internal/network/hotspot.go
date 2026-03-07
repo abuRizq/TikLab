@@ -1,9 +1,6 @@
 package network
 
-import (
-	"fmt"
-	"os/exec"
-)
+import "fmt"
 
 // HotspotAuth simulates Hotspot authentication from within a namespace.
 // MAC-cookie: first request triggers redirect to login; cookie identifies session.

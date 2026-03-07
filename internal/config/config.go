@@ -15,6 +15,10 @@ type Config struct {
 	OverlayPath string
 	ComposePath string
 	DeployDir   string
+	// VolumeName is set when running in Docker; used for compose volume binding
+	VolumeName string
+	// HostPath is set via TIKLAB_HOST_PATH for bind-mount Docker mode
+	HostPath string
 }
 
 // Load returns the current sandbox configuration.
@@ -26,6 +30,14 @@ func Load() *Config {
 	}
 	baseDir := filepath.Join(workDir, "base")
 	overlayDir := filepath.Join(workDir, "overlay")
+	volName := os.Getenv("TIKLAB_VOLUME")
+	hostPath := os.Getenv("TIKLAB_HOST_PATH")
+	if hostPath == "" {
+		hostPath = os.Getenv("TIKLAB_DATA")
+	}
+	if volName == "" && workDir == "/sandbox" && hostPath == "" {
+		volName = "tiklab-data"
+	}
 	return &Config{
 		WorkDir:     workDir,
 		Profile:     "isp_small",
@@ -35,5 +47,7 @@ func Load() *Config {
 		OverlayPath: filepath.Join(overlayDir, "disk.qcow2"),
 		ComposePath: filepath.Join(workDir, "docker-compose.yml"),
 		DeployDir:   filepath.Join(workDir, "deploy"),
+		VolumeName:  volName,
+		HostPath:    hostPath,
 	}
 }

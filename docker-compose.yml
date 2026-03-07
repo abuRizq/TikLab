@@ -1,0 +1,20 @@
+# TikLab - One command from clone to running sandbox
+# Usage: docker compose run --rm tiklab up
+# CHR image auto-downloads on first run (~60MB)
+services:
+  tiklab:
+    build: .
+    image: tiklab:latest
+    privileged: true
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tiklab-data:/sandbox
+    environment:
+      - SANDBOX_WORKDIR=/sandbox
+      - TIKLAB_VOLUME=tiklab-data
+    command: ["up"]
+
+volumes:
+  tiklab-data:
+    name: tiklab-data

@@ -34,6 +34,9 @@ Thumbs.db
 .env.local
 *.local
 
+# Docker data (CHR base, overlay)
+data/
+
 # Build artifacts
 dist/
 build/

@@ -27,7 +27,7 @@ and place chr.qcow2 or chr.img (or any .qcow2/.img) in the base directory.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger.Verbose("create: workdir=%s profile=%s force=%v", cfg.WorkDir, cfg.Profile, createForce)
 		logger.Info("Creating sandbox environment (profile: %s)...", cfg.Profile)
-		res, err := sandbox.Create(cfg.WorkDir, cfg.OverlayPath, cfg.BaseDir, createForce)
+		res, err := sandbox.Create(cfg.WorkDir, cfg.OverlayPath, cfg.BaseDir, cfg.VolumeName, cfg.HostPath, createForce)
 		if err != nil {
 			return fmt.Errorf("create: %w", err)
 		}
