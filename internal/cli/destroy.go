@@ -1,7 +1,12 @@
 package cli
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/spf13/cobra"
+	"github.com/tiklab/tiklab/internal/docker"
+	"github.com/tiklab/tiklab/internal/sandbox"
 )
 
 func newDestroyCmd() *cobra.Command {
@@ -14,7 +19,20 @@ func newDestroyCmd() *cobra.Command {
 }
 
 func runDestroy(cmd *cobra.Command, args []string) error {
-	// Full implementation in Phase 3 (T017)
-	cmd.Println("destroy: not yet implemented")
+	ctx := context.Background()
+
+	// Connect to Docker
+	dc := docker.NewClient()
+	if err := dc.Connect(); err != nil {
+		return fmt.Errorf("Docker is not running. Please start Docker and try again")
+	}
+	defer dc.Close()
+
+	cmd.Println("Destroying sandbox...")
+	mgr := sandbox.NewManager(dc)
+	if err := mgr.Destroy(ctx); err != nil {
+		return err
+	}
+	cmd.Println("Sandbox destroyed.")
 	return nil
 }

@@ -47,8 +47,13 @@ func (c *Client) Run(command string, args ...string) (*routeros.Reply, error) {
 	return c.conn.Run(command, args...)
 }
 
+// DefaultCredentials returns the default RouterOS CHR credentials (admin, empty password).
+func DefaultCredentials() (user, pass string) {
+	return "admin", ""
+}
+
 // WaitForReady polls the RouterOS API until it responds or the timeout is exceeded.
-// Polls /system/identity/print every 3 seconds.
+// Polls every 3 seconds.
 func (c *Client) WaitForReady(host string, port int, user, pass string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	interval := 3 * time.Second

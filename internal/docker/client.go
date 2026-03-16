@@ -7,6 +7,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
 )
 
 // Client wraps the Docker API client with TikLab-specific operations.
@@ -46,6 +47,21 @@ func (c *Client) IsAvailable() bool {
 	ctx := context.Background()
 	_, err := c.cli.Ping(ctx)
 	return err == nil
+}
+
+// ImageExists returns true if the given image tag exists locally.
+func (c *Client) ImageExists(ctx context.Context, tag string) (bool, error) {
+	if c.cli == nil {
+		return false, fmt.Errorf("Docker client not connected")
+	}
+	_, _, err := c.cli.ImageInspectWithRaw(ctx, tag)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to inspect image %s: %w", tag, err)
+	}
+	return true, nil
 }
 
 // PullImage pulls the given image tag and streams progress to stdout.

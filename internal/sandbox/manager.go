@@ -25,7 +25,7 @@ func (m *Manager) Create(ctx context.Context, imageTag, containerName string) er
 		return err
 	}
 	if state != nil {
-		return fmt.Errorf("sandbox already exists. Run `tiklab destroy` first")
+		return fmt.Errorf("Sandbox already exists. Run `tiklab destroy` first")
 	}
 
 	ports := docker.DefaultPortMapping()
@@ -52,21 +52,32 @@ func (m *Manager) Create(ctx context.Context, imageTag, containerName string) er
 	return Save(state)
 }
 
+// WaitForReadyFunc is called after the container starts to wait for RouterOS to boot.
+// Receives host and API port. Returns when ready or on timeout.
+type WaitForReadyFunc func(ctx context.Context, host string, port int) error
+
 // Start activates a created sandbox.
-func (m *Manager) Start(ctx context.Context) error {
+// If waitForReady is non-nil, it is called after starting the container to wait for RouterOS.
+func (m *Manager) Start(ctx context.Context, waitForReady WaitForReadyFunc) error {
 	state, err := Load()
 	if err != nil {
 		return err
 	}
 	if state == nil {
-		return fmt.Errorf("no sandbox found. Run `tiklab create` first")
+		return fmt.Errorf("No sandbox found. Run `tiklab create` first")
 	}
 	if state.Status == StatusRunning {
-		return fmt.Errorf("sandbox is already running")
+		return fmt.Errorf("Sandbox is already running")
 	}
 
 	if err := m.docker.StartContainer(ctx, state.ContainerID); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	if waitForReady != nil {
+		if err := waitForReady(ctx, "127.0.0.1", state.Ports.API); err != nil {
+			return err
+		}
 	}
 
 	now := time.Now()
@@ -82,16 +93,16 @@ func (m *Manager) Scale(ctx context.Context, n int) error {
 		return err
 	}
 	if state == nil {
-		return fmt.Errorf("no sandbox found. Run `tiklab create` first")
+		return fmt.Errorf("No sandbox found. Run `tiklab create` first")
 	}
 	if state.Status != StatusRunning {
-		return fmt.Errorf("sandbox is not running. Run `tiklab start` first")
+		return fmt.Errorf("Sandbox is not running. Run `tiklab start` first")
 	}
 	if n < 1 {
-		return fmt.Errorf("minimum user count is 1")
+		return fmt.Errorf("Minimum user count is 1")
 	}
 	if n > 500 {
-		return fmt.Errorf("maximum user count is 500")
+		return fmt.Errorf("Maximum user count is 500")
 	}
 
 	state.UserCount = n
@@ -105,10 +116,10 @@ func (m *Manager) Reset(ctx context.Context) error {
 		return err
 	}
 	if state == nil {
-		return fmt.Errorf("no sandbox found. Run `tiklab create` first")
+		return fmt.Errorf("No sandbox found. Run `tiklab create` first")
 	}
 	if state.Status != StatusRunning {
-		return fmt.Errorf("sandbox is not running. Run `tiklab start` first")
+		return fmt.Errorf("Sandbox is not running. Run `tiklab start` first")
 	}
 
 	// Reset logic (config wipe, engine restart) is implemented in Phase 5.
@@ -124,7 +135,7 @@ func (m *Manager) Destroy(ctx context.Context) error {
 		return err
 	}
 	if state == nil {
-		return fmt.Errorf("no sandbox found. Nothing to destroy")
+		return fmt.Errorf("No sandbox found. Nothing to destroy")
 	}
 
 	// Stop container if running
