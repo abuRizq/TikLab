@@ -112,10 +112,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T037 [US4] Implement `tiklab scale` command in internal/cli/scale.go — parse count argument (validate integer, range 1-500), load state (error if not running), call behavior engine `POST /scale {"count": N}` on control API port, wait for response, update state file UserCount, print "Scaled to N users." per CLI contract. Error messages per cli-schema.md for invalid range and not-running state
-- [ ] T038 [US4] Implement scale-up logic in internal/engine/engine.go — `Engine.ScaleTo(target int)`: if target > current count, generate additional users with `GenerateUsers(delta)`, run DHCP+Hotspot+CreateUserQueue+traffic for each new user. Maintain 40/45/15 profile distribution across the total user pool (not just the delta)
-- [ ] T039 [US4] Implement scale-down logic in internal/engine/engine.go — if target < current count, select excess users (LIFO or random), stop their traffic goroutines via stop channel, remove user queue via RouterOS API, release DHCP lease, deauthenticate Hotspot session, remove virtual network interface. Update internal user list
-- [ ] T040 [US4] Implement integration test for dynamic scaling in tests/integration/traffic_test.go — scale 50→200 users, verify ~200 active sessions, verify 40/45/15 distribution maintained, assert scaling completes in under 60 seconds (SC-007). Scale back to 50, verify ~50 sessions
+- [X] T037 [US4] Implement `tiklab scale` command in internal/cli/scale.go — parse count argument (validate integer, range 1-500), load state (error if not running), call behavior engine `POST /scale {"count": N}` on control API port, wait for response, update state file UserCount, print "Scaled to N users." per CLI contract. Error messages per cli-schema.md for invalid range and not-running state
+- [X] T038 [US4] Implement scale-up logic in internal/engine/engine.go — `Engine.ScaleTo(target int)`: if target > current count, generate additional users with `GenerateUsers(delta)`, run DHCP+Hotspot+CreateUserQueue+traffic for each new user. Maintain 40/45/15 profile distribution across the total user pool (not just the delta)
+- [X] T039 [US4] Implement scale-down logic in internal/engine/engine.go — if target < current count, select excess users (LIFO or random), stop their traffic goroutines via stop channel, remove user queue via RouterOS API, release DHCP lease, deauthenticate Hotspot session, remove virtual network interface. Update internal user list
+- [X] T040 [US4] Implement integration test for dynamic scaling in tests/integration/traffic_test.go — scale 50→200 users, verify ~200 active sessions, verify 40/45/15 distribution maintained, assert scaling completes in under 60 seconds (SC-007). Scale back to 50, verify ~50 sessions
 
 **Checkpoint**: `tiklab scale` adjusts user count in both directions. Profile distribution is maintained.
 

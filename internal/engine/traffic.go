@@ -161,6 +161,61 @@ func RemoveUserQueue(user *SimulatedUser, c *routeros.Client) error {
 	return nil
 }
 
+// ReleaseDHCPLease removes the user's DHCP lease via RouterOS API.
+func ReleaseDHCPLease(user *SimulatedUser, c *routeros.Client) error {
+	reply, err := c.Run("/ip/dhcp-server/lease/print")
+	if err != nil {
+		return fmt.Errorf("print DHCP lease: %w", err)
+	}
+	for _, re := range reply.Re {
+		if mac, ok := re.Map["mac-address"]; ok && mac == user.MACAddress {
+			for _, k := range []string{".id", "id"} {
+				if id, ok := re.Map[k]; ok {
+					_, _ = c.Run("/ip/dhcp-server/lease/remove", "=numbers="+id)
+					return nil
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// RemoveHotspotSession removes the user's Hotspot active session via RouterOS API.
+func RemoveHotspotSession(user *SimulatedUser, c *routeros.Client) error {
+	reply, err := c.Run("/ip/hotspot/active/print")
+	if err != nil {
+		return nil
+	}
+	for _, re := range reply.Re {
+		macMatch := false
+		ipMatch := false
+		if mac, ok := re.Map["mac-address"]; ok {
+			macMatch = (mac == user.MACAddress)
+		}
+		if ip, ok := re.Map["address"]; ok {
+			ipMatch = (ip == user.IPAddress)
+		}
+		if macMatch || ipMatch {
+			for _, k := range []string{".id", "id"} {
+				if id, ok := re.Map[k]; ok {
+					_, _ = c.Run("/ip/hotspot/active/remove", "=numbers="+id)
+					return nil
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// RemoveSecondaryIP removes a secondary IP from the interface.
+func RemoveSecondaryIP(iface, ip string) error {
+	cmd := exec.Command("ip", "addr", "del", ip+"/22", "dev", iface)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("ip addr del %s dev %s: %v: %s", ip, iface, err, out)
+	}
+	return nil
+}
+
 // AddSecondaryIP adds a secondary IP to the interface (for traffic source binding).
 func AddSecondaryIP(iface, ip string) error {
 	cmd := exec.Command("ip", "addr", "add", ip+"/22", "dev", iface)

@@ -174,6 +174,9 @@ func (e *Engine) ScaleTo(target int) error {
 				delete(e.stopChans, u.ID)
 			}
 			_ = RemoveUserQueue(u, e.ros)
+			_ = RemoveHotspotSession(u, e.ros)
+			_ = ReleaseDHCPLease(u, e.ros)
+			_ = RemoveSecondaryIP(e.cfg.InterfaceName, u.IPAddress)
 			e.users = e.users[:last]
 		}
 	}
