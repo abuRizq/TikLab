@@ -51,6 +51,28 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Apply initial configuration (DHCP, Hotspot, queues)
+	state, err := sandbox.Load()
+	if err != nil {
+		return err
+	}
+	if state == nil {
+		return fmt.Errorf("No sandbox found. Run `tiklab create` first")
+	}
+
+	ros := routeros.NewClient()
+	defer ros.Close()
+	if err := ros.Connect("127.0.0.1", state.Ports.API, user, pass); err != nil {
+		return fmt.Errorf("failed to connect to RouterOS for config: %w", err)
+	}
+
+	if err := routeros.ApplyInitialConfig(ros, cmd.Println); err != nil {
+		return fmt.Errorf("failed to apply configuration: %w", err)
+	}
+
+	cmd.Println("Starting traffic generation (50 users)...")
+	// Behavior engine POST /start wired in Phase 5
+
 	cmd.Println("Ready.")
 	cmd.Println()
 	cmd.Println("  SSH:    ssh admin@localhost -p 2222")
