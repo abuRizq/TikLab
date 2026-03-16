@@ -1,4 +1,7 @@
 # TikLab Sandbox - Multi-stage build
+# Build arg for version tagging (default: latest)
+ARG VERSION=latest
+
 # Stage 1: Build behavior engine
 FROM golang:1.22-alpine AS engine-builder
 WORKDIR /build
@@ -9,6 +12,9 @@ RUN CGO_ENABLED=0 go build -o tiklab-engine ./cmd/tiklab-engine
 
 # Stage 2: Runtime with RouterOS + engine
 FROM evilfreelancer/docker-routeros:7
+
+# Re-declare for runtime stage
+ARG VERSION=latest
 
 # Copy behavior engine binary
 COPY --from=engine-builder /build/tiklab-engine /usr/local/bin/tiklab-engine

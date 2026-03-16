@@ -1,0 +1,87 @@
+# TikLab Sandbox Beta - Cross-platform CI
+# Satisfies constitution cross-platform CI mandate (Development Workflow)
+name: CI
+
+on:
+  push:
+    branches: [main, master, 'feat/*', '001-*']
+  pull_request:
+    branches: [main, master, 'feat/*', '001-*']
+
+jobs:
+  lint-and-unit:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-14
+            goos: darwin
+            goarch: arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Cross-compile
+        run: |
+          mkdir -p dist
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.Version=ci" -o dist/tiklab-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/tiklab
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.Version=ci" -o dist/tiklab-engine-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/tiklab-engine
+
+  integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            run-traffic-tests: true
+          - os: macos-latest
+            run-traffic-tests: false
+          - os: windows-latest
+            run-traffic-tests: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build tiklab (Unix)
+        if: runner.os != 'Windows'
+        run: go build -ldflags "-X main.Version=ci" -o tiklab ./cmd/tiklab
+
+      - name: Build tiklab (Windows)
+        if: runner.os == 'Windows'
+        run: go build -ldflags "-X main.Version=ci" -o tiklab.exe ./cmd/tiklab
+
+      - name: Docker available
+        run: docker info
+
+      - name: Integration tests (lifecycle, protocol)
+        run: go test -tags=integration -count=1 -v ./tests/integration/... -run "TestLifecycle|TestProtocol" -timeout 5m
+
+      - name: Integration tests (traffic) - linux/amd64 only
+        if: matrix.run-traffic-tests
+        run: go test -tags=integration -count=1 -v ./tests/integration/... -run "TestTraffic|TestScale" -timeout 5m

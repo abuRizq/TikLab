@@ -49,7 +49,12 @@ func (m *Manager) Create(ctx context.Context, imageTag, containerName string) er
 		},
 		UserCount: 50,
 	}
-	return Save(state)
+	if err := Save(state); err != nil {
+		// Clean up container on state save failure to avoid orphan
+		_ = m.docker.RemoveContainer(ctx, containerID, true)
+		return err
+	}
+	return nil
 }
 
 // WaitForReadyFunc is called after the container starts to wait for RouterOS to boot.

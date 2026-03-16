@@ -142,12 +142,12 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T045 [P] Add cross-platform CI build script in Makefile — targets for `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`. Produce binaries named `tiklab-{os}-{arch}` in `dist/`
-- [ ] T046 [P] Add Docker image versioning in build/Dockerfile — accept `VERSION` build arg, tag image as `tiklab/sandbox:${VERSION}` and `tiklab/sandbox:latest`. Update CLI create command to use version-matched image tag
-- [ ] T047 [P] Add graceful error handling for Docker connectivity loss in internal/docker/client.go — detect Docker socket errors mid-operation, wrap with user-friendly messages ("Docker connection lost. Is Docker running?"), ensure state file consistency on partial failures (write state before Docker ops, clean up on failure), apply to all commands. Cover edge case: network/Docker connectivity lost during create/start/reset/scale operations
-- [ ] T048 Run full lifecycle validation: `tiklab create` → `tiklab start` → verify 50 users via API → `tiklab scale 200` → verify 200 users → `tiklab reset` → verify clean state with 50 fresh users → `tiklab destroy` → verify no artifacts remain
-- [ ] T049 [P] Validate quickstart.md instructions end-to-end — execute each step in specs/001-tiklab-sandbox-beta/quickstart.md on a clean machine, confirm all commands and expected outputs match
-- [ ] T050 [P] Create CI pipeline in .github/workflows/ci.yml — matrix builds for linux/amd64, darwin/amd64, darwin/arm64, windows/amd64. Steps: checkout, setup Go, lint (`golangci-lint`), run unit tests, cross-compile CLI and engine binaries. Integration tests on all platforms with Docker: verify CLI↔Docker daemon interaction (container create/start/destroy), host-to-container port reachability (SSH, API). Container-internal traffic tests on linux/amd64 only. Satisfies constitution cross-platform CI mandate
+- [X] T045 [P] Add cross-platform CI build script in Makefile — targets for `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`. Produce binaries named `tiklab-{os}-{arch}` in `dist/`
+- [X] T046 [P] Add Docker image versioning in build/Dockerfile — accept `VERSION` build arg, tag image as `tiklab/sandbox:${VERSION}` and `tiklab/sandbox:latest`. Update CLI create command to use version-matched image tag
+- [X] T047 [P] Add graceful error handling for Docker connectivity loss in internal/docker/client.go — detect Docker socket errors mid-operation, wrap with user-friendly messages ("Docker connection lost. Is Docker running?"), ensure state file consistency on partial failures (write state before Docker ops, clean up on failure), apply to all commands. Cover edge case: network/Docker connectivity lost during create/start/reset/scale operations
+- [X] T048 Run full lifecycle validation: `tiklab create` → `tiklab start` → verify 50 users via API → `tiklab scale 200` → verify 200 users → `tiklab reset` → verify clean state with 50 fresh users → `tiklab destroy` → verify no artifacts remain
+- [X] T049 [P] Validate quickstart.md instructions end-to-end — execute each step in specs/001-tiklab-sandbox-beta/quickstart.md on a clean machine, confirm all commands and expected outputs match
+- [X] T050 [P] Create CI pipeline in .github/workflows/ci.yml — matrix builds for linux/amd64, darwin/amd64, darwin/arm64, windows/amd64. Steps: checkout, setup Go, lint (`golangci-lint`), run unit tests, cross-compile CLI and engine binaries. Integration tests on all platforms with Docker: verify CLI↔Docker daemon interaction (container create/start/destroy), host-to-container port reachability (SSH, API). Container-internal traffic tests on linux/amd64 only. Satisfies constitution cross-platform CI mandate
 
 ---
 

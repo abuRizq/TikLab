@@ -24,7 +24,7 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 	// Connect to Docker
 	dc := docker.NewClient()
 	if err := dc.Connect(); err != nil {
-		return fmt.Errorf("Docker is not running. Please start Docker and try again")
+		return err
 	}
 	defer dc.Close()
 

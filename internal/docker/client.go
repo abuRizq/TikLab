@@ -2,13 +2,53 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
+	"strings"
+	"syscall"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/errdefs"
 )
+
+// wrapConnectionError wraps Docker connectivity errors with a user-friendly message.
+// Detects connection refused, reset, EOF, and socket errors during operations.
+func wrapConnectionError(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if !isConnectionError(err) {
+		return err
+	}
+	return fmt.Errorf("Docker connection lost. Is Docker running? (%s: %w)", op, err)
+}
+
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// syscall.ECONNREFUSED, ECONNRESET
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return errno == syscall.ECONNREFUSED || errno == syscall.ECONNRESET
+	}
+	// *net.OpError (wraps dial/read/write failures)
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+	// Common error substrings from Docker client
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "connection refused") ||
+		strings.Contains(s, "connection reset") ||
+		strings.Contains(s, "dial tcp") ||
+		strings.Contains(s, "eof") ||
+		strings.Contains(s, "broken pipe") ||
+		strings.Contains(s, "no such host")
+}
 
 // Client wraps the Docker API client with TikLab-specific operations.
 type Client struct {
@@ -25,7 +65,7 @@ func NewClient() *Client {
 func (c *Client) Connect() error {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("failed to create Docker client: %w", err)
+		return wrapConnectionError("connect", err)
 	}
 	c.cli = cli
 	return nil
@@ -59,7 +99,7 @@ func (c *Client) ImageExists(ctx context.Context, tag string) (bool, error) {
 		if errdefs.IsNotFound(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("failed to inspect image %s: %w", tag, err)
+		return false, wrapConnectionError("image inspect", err)
 	}
 	return true, nil
 }
@@ -72,14 +112,14 @@ func (c *Client) PullImage(ctx context.Context, tag string, out io.Writer) error
 	}
 	reader, err := c.cli.ImagePull(ctx, tag, types.ImagePullOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to pull image %s: %w", tag, err)
+		return wrapConnectionError("image pull", err)
 	}
 	defer reader.Close()
 
 	if out != nil {
 		_, err = io.Copy(out, reader)
 		if err != nil {
-			return fmt.Errorf("failed to stream pull output: %w", err)
+			return wrapConnectionError("image pull stream", err)
 		}
 	} else {
 		_, _ = io.Copy(io.Discard, reader)

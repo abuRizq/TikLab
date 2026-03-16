@@ -12,15 +12,18 @@ import (
 )
 
 const (
-	defaultImageTag      = "tiklab/sandbox:0.1.0"
 	defaultContainerName = "tiklab-sandbox"
 )
 
-func getImageTag() string {
+func getImageTag(cmd *cobra.Command) string {
 	if tag := os.Getenv("TIKLAB_IMAGE"); tag != "" {
 		return tag
 	}
-	return defaultImageTag
+	version := cmd.Root().Version
+	if version == "" || version == "dev" {
+		version = "latest"
+	}
+	return "tiklab/sandbox:" + version
 }
 
 func newCreateCmd() *cobra.Command {
@@ -38,7 +41,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	// Connect to Docker
 	dc := docker.NewClient()
 	if err := dc.Connect(); err != nil {
-		return fmt.Errorf("Docker is not running. Please start Docker and try again")
+		return err
 	}
 	defer dc.Close()
 
@@ -65,7 +68,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Pull image if needed
-	imageTag := getImageTag()
+	imageTag := getImageTag(cmd)
 	exists, err := dc.ImageExists(ctx, imageTag)
 	if err != nil {
 		return err

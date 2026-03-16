@@ -66,7 +66,7 @@ func (c *Client) CreateContainer(ctx context.Context, name, imageTag string, por
 
 	resp, err := c.cli.ContainerCreate(ctx, config, hostConfig, &network.NetworkingConfig{}, nil, name)
 	if err != nil {
-		return "", fmt.Errorf("failed to create container: %w", err)
+		return "", wrapConnectionError("container create", err)
 	}
 	return resp.ID, nil
 }
@@ -76,7 +76,10 @@ func (c *Client) StartContainer(ctx context.Context, id string) error {
 	if c.cli == nil {
 		return fmt.Errorf("Docker client not connected")
 	}
-	return c.cli.ContainerStart(ctx, id, container.StartOptions{})
+	if err := c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
+		return wrapConnectionError("container start", err)
+	}
+	return nil
 }
 
 // StopContainer stops the container with the given ID.
@@ -85,7 +88,10 @@ func (c *Client) StopContainer(ctx context.Context, id string) error {
 		return fmt.Errorf("Docker client not connected")
 	}
 	timeout := 10 // seconds
-	return c.cli.ContainerStop(ctx, id, container.StopOptions{Timeout: &timeout})
+	if err := c.cli.ContainerStop(ctx, id, container.StopOptions{Timeout: &timeout}); err != nil {
+		return wrapConnectionError("container stop", err)
+	}
+	return nil
 }
 
 // RemoveContainer removes the container with the given ID.
@@ -94,7 +100,10 @@ func (c *Client) RemoveContainer(ctx context.Context, id string, removeVolumes b
 	if c.cli == nil {
 		return fmt.Errorf("Docker client not connected")
 	}
-	return c.cli.ContainerRemove(ctx, id, container.RemoveOptions{Force: true, RemoveVolumes: removeVolumes})
+	if err := c.cli.ContainerRemove(ctx, id, container.RemoveOptions{Force: true, RemoveVolumes: removeVolumes}); err != nil {
+		return wrapConnectionError("container remove", err)
+	}
+	return nil
 }
 
 // ContainerExists returns true if a container with the given name exists.
@@ -104,7 +113,7 @@ func (c *Client) ContainerExists(ctx context.Context, name string) (bool, error)
 	}
 	containers, err := c.cli.ContainerList(ctx, container.ListOptions{All: true})
 	if err != nil {
-		return false, fmt.Errorf("failed to list containers: %w", err)
+		return false, wrapConnectionError("container list", err)
 	}
 	for _, cnt := range containers {
 		for _, n := range cnt.Names {
