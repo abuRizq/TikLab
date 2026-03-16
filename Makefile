@@ -17,7 +17,7 @@ build-engine:
 	go build $(LDFLAGS) -o tiklab-engine ./cmd/tiklab-engine
 
 build-image:
-	docker build -t tiklab/sandbox:$(VERSION) -f build/Dockerfile build/
+	docker build -t tiklab/sandbox:$(VERSION) -f build/Dockerfile .
 
 # Test and lint
 test:

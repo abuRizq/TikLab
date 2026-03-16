@@ -14,6 +14,8 @@ type SimulatedUser struct {
 	IPAddress     string
 	Profile       Profile
 	SessionActive bool
+	QueueName     string // RouterOS queue name for teardown
+	QueueID       string // RouterOS internal .id for remove
 }
 
 // GenerateUsers creates count simulated users with the given profile distribution.
