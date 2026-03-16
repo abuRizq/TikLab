@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/tiklab/tiklab/internal/docker"

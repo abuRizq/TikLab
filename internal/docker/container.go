@@ -6,6 +6,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/go-connections/nat"
 )
 
 // PortMapping defines host-to-container port mappings.
@@ -33,28 +34,30 @@ func (c *Client) CreateContainer(ctx context.Context, name, imageTag string, por
 		return "", fmt.Errorf("Docker client not connected")
 	}
 
-	portBindings := map[string][]container.PortBinding{
-		"22/tcp":   {{HostPort: fmt.Sprintf("%d", ports.SSH)}},
-		"8728/tcp": {{HostPort: fmt.Sprintf("%d", ports.API)}},
-		"8291/tcp": {{HostPort: fmt.Sprintf("%d", ports.Winbox)}},
-		"9090/tcp": {{HostPort: fmt.Sprintf("%d", ports.Control)}},
+	portBindings := nat.PortMap{
+		nat.Port("22/tcp"):   {{HostPort: fmt.Sprintf("%d", ports.SSH)}},
+		nat.Port("8728/tcp"): {{HostPort: fmt.Sprintf("%d", ports.API)}},
+		nat.Port("8291/tcp"): {{HostPort: fmt.Sprintf("%d", ports.Winbox)}},
+		nat.Port("9090/tcp"): {{HostPort: fmt.Sprintf("%d", ports.Control)}},
 	}
 
-	exposedPorts := map[string]struct{}{
-		"22/tcp":   {},
-		"8728/tcp": {},
-		"8291/tcp": {},
-		"9090/tcp": {},
+	exposedPorts := nat.PortSet{
+		nat.Port("22/tcp"):   {},
+		nat.Port("8728/tcp"): {},
+		nat.Port("8291/tcp"): {},
+		nat.Port("9090/tcp"): {},
 	}
 
 	hostConfig := &container.HostConfig{
 		PortBindings: portBindings,
 		CapAdd:       []string{"NET_ADMIN"},
-		Devices: []container.DeviceMapping{
-			{
-				PathOnHost:        "/dev/net/tun",
-				PathInContainer:   "/dev/net/tun",
-				CgroupPermissions: "mrw",
+		Resources: container.Resources{
+			Devices: []container.DeviceMapping{
+				{
+					PathOnHost:        "/dev/net/tun",
+					PathInContainer:   "/dev/net/tun",
+					CgroupPermissions: "mrw",
+				},
 			},
 		},
 	}

@@ -57,6 +57,7 @@ func AssignProfiles(count int) []Profile {
 	idleCount := (count * 40) / 100
 	standardCount := (count * 45) / 100
 	heavyCount := count - idleCount - standardCount
+	_ = heavyCount // used implicitly: remaining slots get ProfileHeavy
 
 	i := 0
 	for ; i < idleCount; i++ {

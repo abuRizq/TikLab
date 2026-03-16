@@ -49,7 +49,7 @@ func runReset(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Println("Reapplying initial setup...")
-	if err := routeros.ApplyInitialConfig(ros, cmd.Println); err != nil {
+	if err := routeros.ApplyInitialConfig(ros, func(msg string) { cmd.Println(msg) }); err != nil {
 		return fmt.Errorf("failed to reapply configuration: %w", err)
 	}
 

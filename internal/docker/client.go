@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/errdefs"
 )
@@ -110,7 +110,7 @@ func (c *Client) PullImage(ctx context.Context, tag string, out io.Writer) error
 	if c.cli == nil {
 		return fmt.Errorf("Docker client not connected")
 	}
-	reader, err := c.cli.ImagePull(ctx, tag, types.ImagePullOptions{})
+	reader, err := c.cli.ImagePull(ctx, tag, image.PullOptions{})
 	if err != nil {
 		return wrapConnectionError("image pull", err)
 	}

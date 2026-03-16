@@ -66,7 +66,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to connect to RouterOS for config: %w", err)
 	}
 
-	if err := routeros.ApplyInitialConfig(ros, cmd.Println); err != nil {
+	if err := routeros.ApplyInitialConfig(ros, func(msg string) { cmd.Println(msg) }); err != nil {
 		return fmt.Errorf("failed to apply configuration: %w", err)
 	}
 

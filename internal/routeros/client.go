@@ -34,7 +34,7 @@ func (c *Client) Connect(host string, port int, user, pass string) error {
 // Close closes the connection.
 func (c *Client) Close() error {
 	if c.conn != nil {
-		return c.conn.Close()
+		c.conn.Close()
 	}
 	return nil
 }
@@ -44,7 +44,7 @@ func (c *Client) Run(command string, args ...string) (*routeros.Reply, error) {
 	if c.conn == nil {
 		return nil, fmt.Errorf("not connected to RouterOS")
 	}
-	return c.conn.Run(command, args...)
+	return c.conn.Run(append([]string{command}, args...)...)
 }
 
 // DefaultCredentials returns the default RouterOS CHR credentials (admin, empty password).
@@ -67,11 +67,11 @@ func (c *Client) WaitForReady(host string, port int, user, pass string, timeout 
 			time.Sleep(interval)
 			continue
 		}
-		_ = conn.Close()
+		conn.Close()
 
 		// Connect and keep the connection for the manager
 		if c.conn != nil {
-			_ = c.conn.Close()
+			c.conn.Close()
 		}
 		conn2, err := routeros.Dial(net.JoinHostPort(host, strconv.Itoa(port)), user, pass)
 		if err != nil {
