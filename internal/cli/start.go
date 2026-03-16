@@ -1,12 +1,8 @@
 package cli
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -90,25 +86,5 @@ func runStart(cmd *cobra.Command, args []string) error {
 	cmd.Println("  SSH:    ssh admin@localhost -p 2222")
 	cmd.Println("  API:    localhost:8728")
 	cmd.Println("  Winbox: localhost:8291")
-	return nil
-}
-
-func callEngineStart(port int, count int) error {
-	url := "http://127.0.0.1:" + strconv.Itoa(port) + "/start"
-	body, _ := json.Marshal(map[string]int{"count": count})
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("engine returned status %d", resp.StatusCode)
-	}
 	return nil
 }

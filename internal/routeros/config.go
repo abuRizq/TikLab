@@ -143,6 +143,94 @@ func ConfigureQueueTemplate(c *Client) error {
 	return nil
 }
 
+// WipeConfig removes all configuration added by TikLab: queues, Hotspot, DHCP, IP, pool.
+// Order matters: remove dependents before parents.
+// Intended for tiklab reset to restore a clean state.
+func WipeConfig(c *Client) error {
+	// 1. Remove all simple queues (per-user and templates)
+	if err := removeAll(c, "/queue/simple/print", "/queue/simple/remove"); err != nil {
+		return fmt.Errorf("remove queues: %w", err)
+	}
+
+	// 2. Remove Hotspot active sessions
+	if err := removeAll(c, "/ip/hotspot/active/print", "/ip/hotspot/active/remove"); err != nil {
+		return fmt.Errorf("remove hotspot active: %w", err)
+	}
+
+	// 3. Remove Hotspot users
+	if err := removeAll(c, "/ip/hotspot/user/print", "/ip/hotspot/user/remove"); err != nil {
+		return fmt.Errorf("remove hotspot users: %w", err)
+	}
+
+	// 4. Remove Hotspot server (before profiles it references)
+	if err := removeAll(c, "/ip/hotspot/print", "/ip/hotspot/remove"); err != nil {
+		return fmt.Errorf("remove hotspot: %w", err)
+	}
+
+	// 5. Remove Hotspot user profiles (default we added; after server removal)
+	if err := removeAll(c, "/ip/hotspot/user/profile/print", "/ip/hotspot/user/profile/remove"); err != nil {
+		return fmt.Errorf("remove hotspot profiles: %w", err)
+	}
+
+	// 6. Remove DHCP leases
+	if err := removeAll(c, "/ip/dhcp-server/lease/print", "/ip/dhcp-server/lease/remove"); err != nil {
+		return fmt.Errorf("remove DHCP leases: %w", err)
+	}
+
+	// 7. Remove DHCP network
+	if err := removeAll(c, "/ip/dhcp-server/network/print", "/ip/dhcp-server/network/remove"); err != nil {
+		return fmt.Errorf("remove DHCP network: %w", err)
+	}
+
+	// 8. Remove DHCP server
+	if err := removeAll(c, "/ip/dhcp-server/print", "/ip/dhcp-server/remove"); err != nil {
+		return fmt.Errorf("remove DHCP server: %w", err)
+	}
+
+	// 9. Remove IP address on ether1 (10.10.0.1/22)
+	if err := removeAll(c, "/ip/address/print", "/ip/address/remove"); err != nil {
+		return fmt.Errorf("remove IP address: %w", err)
+	}
+
+	// 10. Remove IP pool
+	if err := removeAll(c, "/ip/pool/print", "/ip/pool/remove"); err != nil {
+		return fmt.Errorf("remove IP pool: %w", err)
+	}
+
+	// 11. Remove extra firewall rules (user-added)
+	if err := removeAll(c, "/ip/firewall/filter/print", "/ip/firewall/filter/remove"); err != nil {
+		return fmt.Errorf("remove firewall rules: %w", err)
+	}
+
+	return nil
+}
+
+// removeAll prints items at path, collects .id values, and removes each in reverse order.
+func removeAll(c *Client, printPath, removePath string) error {
+	reply, err := c.Run(printPath)
+	if err != nil {
+		return err
+	}
+	if reply == nil || len(reply.Re) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(reply.Re))
+	for _, re := range reply.Re {
+		for _, k := range []string{".id", "id"} {
+			if id, ok := re.Map[k]; ok {
+				ids = append(ids, id)
+				break
+			}
+		}
+	}
+	for i := len(ids) - 1; i >= 0; i-- {
+		if _, err := c.Run(removePath, "=numbers="+ids[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ApplyInitialConfig applies DHCP, Hotspot, and queue configuration in sequence.
 // Intended to be called after RouterOS boot completes during tiklab start.
 func ApplyInitialConfig(c *Client, progress func(msg string)) error {

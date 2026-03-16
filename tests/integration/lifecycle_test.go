@@ -9,16 +9,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/tiklab/tiklab/internal/docker"
+	"github.com/tiklab/tiklab/internal/routeros"
 	"github.com/tiklab/tiklab/internal/sandbox"
 )
 
 const (
 	createStartTimeout = 2 * time.Minute
 	portCheckTimeout   = 5 * time.Second
+	resetTimeout       = 30 * time.Second // SC-005: reset completes in under 30 seconds
+	trafficStabilize    = 45 * time.Second
 )
 
 // tiklabBin returns the path to the tiklab binary (built in project root).
@@ -141,6 +145,156 @@ func TestLifecycleCreateStartDestroy(t *testing.T) {
 		if isPortReachable(port) {
 			t.Logf("Port %d still reachable (container may still be shutting down)", port)
 		}
+	}
+}
+
+// TestResetRestoresCleanState verifies tiklab reset wipes config changes and restores clean state.
+// Makes config changes via RouterOS API (firewall rule, delete user), runs tiklab reset,
+// verifies clean state matches fresh sandbox, asserts reset completes in under 30s (SC-005).
+func TestResetRestoresCleanState(t *testing.T) {
+	t.Cleanup(ensureCleanState)
+
+	dc := docker.NewClient()
+	if err := dc.Connect(); err != nil {
+		t.Skipf("Docker not available: %v", err)
+	}
+	defer dc.Close()
+	if !dc.IsAvailable() {
+		t.Skip("Docker daemon not reachable")
+	}
+
+	t.Log("Running tiklab create...")
+	if err := runTiklab(t, "create"); err != nil {
+		t.Fatalf("tiklab create failed: %v", err)
+	}
+
+	t.Log("Running tiklab start...")
+	if err := runTiklab(t, "start"); err != nil {
+		t.Fatalf("tiklab start failed: %v", err)
+	}
+
+	state, err := sandbox.Load()
+	if err != nil {
+		t.Fatalf("Load state: %v", err)
+	}
+	if state == nil {
+		t.Fatal("Expected state after start")
+	}
+
+	t.Logf("Waiting %v for traffic to stabilize...", trafficStabilize)
+	time.Sleep(trafficStabilize)
+
+	user, pass := routeros.DefaultCredentials()
+	ros := routeros.NewClient()
+	defer ros.Close()
+	if err := ros.Connect("127.0.0.1", state.Ports.API, user, pass); err != nil {
+		t.Fatalf("RouterOS API connect failed: %v", err)
+	}
+
+	// Make config changes: add firewall rule, delete a Hotspot user
+	t.Log("Adding firewall rule...")
+	if _, err := ros.Run("/ip/firewall/filter/add",
+		"=chain=input",
+		"=action=accept",
+		"=comment=tiklab-test-rule",
+	); err != nil {
+		t.Fatalf("Add firewall rule failed: %v", err)
+	}
+
+	t.Log("Deleting a Hotspot user...")
+	reply, err := ros.Run("/ip/hotspot/user/print")
+	if err != nil {
+		t.Fatalf("/ip/hotspot/user/print failed: %v", err)
+	}
+	if len(reply.Re) > 0 {
+		for _, re := range reply.Re {
+			if id, ok := re.Map[".id"]; ok {
+				_, _ = ros.Run("/ip/hotspot/user/remove", "=numbers="+id)
+				break
+			}
+		}
+	}
+
+	// Verify changes are present
+	reply, err = ros.Run("/ip/firewall/filter/print")
+	if err != nil {
+		t.Fatalf("/ip/firewall/filter/print failed: %v", err)
+	}
+	firewallCountBefore := len(reply.Re)
+	foundTestRule := false
+	for _, re := range reply.Re {
+		if c, ok := re.Map["comment"]; ok && strings.Contains(c, "tiklab-test-rule") {
+			foundTestRule = true
+			break
+		}
+	}
+	if !foundTestRule {
+		t.Log("Firewall rule may not have comment in print output; continuing")
+	}
+	t.Logf("Firewall rules before reset: %d", firewallCountBefore)
+
+	// Run tiklab reset and assert it completes in under 30 seconds
+	t.Log("Running tiklab reset...")
+	resetStart := time.Now()
+	if err := runTiklab(t, "reset"); err != nil {
+		t.Fatalf("tiklab reset failed: %v", err)
+	}
+	resetElapsed := time.Since(resetStart)
+	if resetElapsed > resetTimeout {
+		t.Errorf("Reset took %v, expected under %v (SC-005)", resetElapsed, resetTimeout)
+	}
+	t.Logf("Reset completed in %v", resetElapsed)
+
+	// Reconnect (connection may have been closed)
+	ros2 := routeros.NewClient()
+	defer ros2.Close()
+	if err := ros2.Connect("127.0.0.1", state.Ports.API, user, pass); err != nil {
+		t.Fatalf("RouterOS API reconnect failed: %v", err)
+	}
+
+	// Verify clean state: DHCP server present, Hotspot present, no test firewall rule
+	reply, err = ros2.Run("/ip/dhcp-server/print")
+	if err != nil {
+		t.Fatalf("/ip/dhcp-server/print after reset failed: %v", err)
+	}
+	if len(reply.Re) == 0 {
+		t.Error("Expected DHCP server after reset (clean state)")
+	}
+
+	reply, err = ros2.Run("/ip/hotspot/print")
+	if err != nil {
+		t.Fatalf("/ip/hotspot/print after reset failed: %v", err)
+	}
+	if len(reply.Re) == 0 {
+		t.Error("Expected Hotspot after reset (clean state)")
+	}
+
+	reply, err = ros2.Run("/ip/firewall/filter/print")
+	if err != nil {
+		t.Fatalf("/ip/firewall/filter/print after reset failed: %v", err)
+	}
+	for _, re := range reply.Re {
+		if c, ok := re.Map["comment"]; ok && strings.Contains(c, "tiklab-test-rule") {
+			t.Error("Test firewall rule should be removed after reset")
+			break
+		}
+	}
+
+	// Verify ~50 users regenerated (DHCP leases or engine status)
+	time.Sleep(10 * time.Second) // Allow users to regenerate
+	reply, err = ros2.Run("/ip/dhcp-server/lease/print")
+	if err != nil {
+		t.Fatalf("/ip/dhcp-server/lease/print after reset failed: %v", err)
+	}
+	leaseCount := len(reply.Re)
+	if leaseCount < 40 || leaseCount > 60 {
+		t.Errorf("Expected ~50 DHCP leases after reset, got %d", leaseCount)
+	}
+	t.Logf("DHCP leases after reset: %d", leaseCount)
+
+	t.Log("Running tiklab destroy...")
+	if err := runTiklab(t, "destroy"); err != nil {
+		t.Logf("destroy failed: %v", err)
 	}
 }
 

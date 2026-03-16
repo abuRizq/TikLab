@@ -1,12 +1,8 @@
 package cli
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tiklab/tiklab/internal/sandbox"
@@ -66,25 +62,5 @@ func runScale(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Println("Scaled to", count, "users.")
-	return nil
-}
-
-func callEngineScale(port int, count int) error {
-	url := "http://127.0.0.1:" + strconv.Itoa(port) + "/scale"
-	body, _ := json.Marshal(map[string]int{"count": count})
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("engine returned status %d", resp.StatusCode)
-	}
 	return nil
 }

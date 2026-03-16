@@ -92,7 +92,10 @@ func (e *Engine) Start(count int) error {
 	return nil
 }
 
-// Stop halts all traffic generation and cleans up.
+// Stop halts all traffic generation and cleans up: signals stop channels, waits for
+// goroutines to exit, removes user queues, releases DHCP leases, removes Hotspot
+// sessions, and removes secondary IPs. Subsequent Start(count) generates entirely
+// new users with fresh random identities.
 func (e *Engine) Stop() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -109,6 +112,9 @@ func (e *Engine) Stop() error {
 	if e.ros != nil {
 		for _, u := range e.users {
 			_ = RemoveUserQueue(u, e.ros)
+			_ = RemoveHotspotSession(u, e.ros)
+			_ = ReleaseDHCPLease(u, e.ros)
+			_ = RemoveSecondaryIP(e.cfg.InterfaceName, u.IPAddress)
 		}
 		e.ros.Close()
 		e.ros = nil
