@@ -1,0 +1,34 @@
+﻿---
+description: Project Development Guidelines
+globs: ["**/*"]
+alwaysApply: true
+---
+# TikLab Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2026-03-16
+
+## Active Technologies
+
+- Go 1.22+ + `github.com/spf13/cobra` (CLI), `github.com/docker/docker/client` (Docker SDK), `github.com/go-routeros/routeros/v3` (RouterOS API) (001-tiklab-sandbox-beta)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+# Add commands for Go 1.22+
+
+## Code Style
+
+Go 1.22+: Follow standard conventions
+
+## Recent Changes
+
+- 001-tiklab-sandbox-beta: Added Go 1.22+ + `github.com/spf13/cobra` (CLI), `github.com/docker/docker/client` (Docker SDK), `github.com/go-routeros/routeros/v3` (RouterOS API)
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->
