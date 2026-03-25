@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -24,6 +26,11 @@ func callEngineStart(port int, count int) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		detail := strings.TrimSpace(string(respBody))
+		if detail != "" {
+			return fmt.Errorf("engine returned status %d: %s", resp.StatusCode, detail)
+		}
 		return fmt.Errorf("engine returned status %d", resp.StatusCode)
 	}
 	return nil

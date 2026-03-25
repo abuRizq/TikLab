@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	routerOSHost     = "10.10.0.1"
+	routerOSHost     = "127.0.0.1"
 	routerOSAPIPort  = 8728
-	hotspotLoginURL  = "http://10.10.0.1/login"
+	hotspotLoginURL  = "http://127.0.0.1/login"
 	dhcpServerName   = "dhcp1"
 	queueLimitIdle   = "256k/256k"
 	queueLimitStd    = "2M/2M"
@@ -281,7 +281,7 @@ func RunStandardTraffic(user *SimulatedUser, stop chan struct{}, httpSinkURL str
 
 func doHTTPGet(srcIP, url string) {
 	if url == "" {
-		url = "http://10.10.0.1/"
+		url = "http://127.0.0.1/"
 	}
 	client := &http.Client{
 		Timeout: 10 * time.Second,

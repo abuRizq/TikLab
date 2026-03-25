@@ -3,7 +3,7 @@
 ARG VERSION=latest
 
 # Stage 1: Build behavior engine
-FROM golang:1.22-alpine AS engine-builder
+FROM golang:1.25-alpine AS engine-builder
 WORKDIR /build
 COPY go.mod ./
 RUN go mod download 2>/dev/null || true
@@ -21,7 +21,7 @@ COPY --from=engine-builder /build/tiklab-engine /usr/local/bin/tiklab-engine
 
 # Copy entrypoint script
 COPY build/scripts/entrypoint.sh /usr/local/bin/tiklab-entrypoint.sh
-RUN chmod +x /usr/local/bin/tiklab-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/tiklab-entrypoint.sh && chmod +x /usr/local/bin/tiklab-entrypoint.sh
 
 # Expose ports: SSH, API, Winbox, Control
 EXPOSE 22 8728 8291 9090

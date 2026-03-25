@@ -82,9 +82,9 @@ func (e *Engine) Start(count int) error {
 		case ProfileIdle:
 			go RunIdleTraffic(u, stop)
 		case ProfileStandard:
-			go RunStandardTraffic(u, stop, "http://10.10.0.1/")
+			go RunStandardTraffic(u, stop, "http://127.0.0.1/")
 		case ProfileHeavy:
-			go RunHeavyTraffic(u, stop, "10.10.0.1:80")
+			go RunHeavyTraffic(u, stop, "127.0.0.1:80")
 		}
 	}
 
@@ -163,9 +163,9 @@ func (e *Engine) ScaleTo(target int) error {
 			case ProfileIdle:
 				go RunIdleTraffic(u, stop)
 			case ProfileStandard:
-				go RunStandardTraffic(u, stop, "http://10.10.0.1/")
+				go RunStandardTraffic(u, stop, "http://127.0.0.1/")
 			case ProfileHeavy:
-				go RunHeavyTraffic(u, stop, "10.10.0.1:80")
+				go RunHeavyTraffic(u, stop, "127.0.0.1:80")
 			}
 			e.users = append(e.users, u)
 		}

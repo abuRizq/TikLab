@@ -3,9 +3,18 @@ package sandbox
 import (
 	"context"
 	"fmt"
+	"log"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/tiklab/tiklab/internal/docker"
+)
+
+const (
+	kvmBootTimeout       = 180 * time.Second
+	emulationBootTimeout = 900 * time.Second
+	kvmDetectDelay       = 5 * time.Second
 )
 
 // Manager orchestrates sandbox lifecycle operations.
@@ -58,8 +67,8 @@ func (m *Manager) Create(ctx context.Context, imageTag, containerName string) er
 }
 
 // WaitForReadyFunc is called after the container starts to wait for RouterOS to boot.
-// Receives host and API port. Returns when ready or on timeout.
-type WaitForReadyFunc func(ctx context.Context, host string, port int) error
+// Receives host, API port, and boot timeout. Returns when ready or on timeout.
+type WaitForReadyFunc func(ctx context.Context, host string, port int, timeout time.Duration) error
 
 // Start activates a created sandbox.
 // If waitForReady is non-nil, it is called after starting the container to wait for RouterOS.
@@ -79,8 +88,37 @@ func (m *Manager) Start(ctx context.Context, waitForReady WaitForReadyFunc) erro
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
+	bootTimeout := kvmBootTimeout
+	emulationMode := false
+	time.Sleep(kvmDetectDelay)
+	earlyLogs, _ := m.docker.ContainerLogs(ctx, state.ContainerID)
+	if strings.Contains(earlyLogs, "KVM not available") {
+		emulationMode = true
+		bootTimeout = emulationBootTimeout
+		log.Printf("[sandbox] KVM not available — QEMU running in emulation mode.")
+		log.Printf("[sandbox] Boot will be SLOW (timeout %ds). To fix, enable nested virtualization:", int(bootTimeout.Seconds()))
+		if runtime.GOOS == "windows" {
+			log.Printf("[sandbox]   1. Open PowerShell as Administrator")
+			log.Printf("[sandbox]   2. Run: echo '[wsl2]\nnestedVirtualization=true' > $env:USERPROFILE\\.wslconfig")
+			log.Printf("[sandbox]   3. Run: wsl --shutdown")
+			log.Printf("[sandbox]   4. Restart Docker Desktop")
+		} else {
+			log.Printf("[sandbox]   Ensure KVM is available: sudo modprobe kvm && ls /dev/kvm")
+		}
+	}
+
 	if waitForReady != nil {
-		if err := waitForReady(ctx, "127.0.0.1", state.Ports.API); err != nil {
+		if err := waitForReady(ctx, "127.0.0.1", state.Ports.API, bootTimeout); err != nil {
+			if emulationMode {
+				return fmt.Errorf("RouterOS failed to boot: QEMU is running without KVM hardware acceleration.\n\n"+
+					"  This makes boot extremely slow or impossible.\n\n"+
+					"  Fix: Enable nested virtualization in WSL2:\n"+
+					"    1. Open PowerShell as Administrator\n"+
+					"    2. Run: echo '[wsl2]\\nnestedVirtualization=true' > $env:USERPROFILE\\.wslconfig\n"+
+					"    3. Run: wsl --shutdown\n"+
+					"    4. Restart Docker Desktop\n"+
+					"    5. Run: tiklab destroy && tiklab create && tiklab start")
+			}
 			return err
 		}
 	}

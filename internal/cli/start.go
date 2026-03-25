@@ -11,8 +11,6 @@ import (
 	"github.com/tiklab/tiklab/internal/sandbox"
 )
 
-const routerOSBootTimeout = 90 * time.Second
-
 func newStartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
@@ -36,13 +34,12 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("Docker is not running. Please start Docker and try again")
 	}
 
-	// Build wait-for-ready function using RouterOS client
 	user, pass := routeros.DefaultCredentials()
-	waitForReady := func(ctx context.Context, host string, port int) error {
+	waitForReady := func(ctx context.Context, host string, port int, timeout time.Duration) error {
 		cmd.Println("Waiting for RouterOS to boot...")
 		ros := routeros.NewClient()
 		defer ros.Close()
-		return ros.WaitForReady(host, port, user, pass, routerOSBootTimeout)
+		return ros.WaitForReady(host, port, user, pass, timeout)
 	}
 
 	cmd.Println("Starting sandbox...")

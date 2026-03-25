@@ -1,11 +1,13 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 )
 
@@ -109,6 +111,34 @@ func (c *Client) RemoveContainer(ctx context.Context, id string, removeVolumes b
 	return nil
 }
 
+// ContainerLogs returns the container's stdout and stderr as a string.
+func (c *Client) ContainerLogs(ctx context.Context, id string) (string, error) {
+	if c.cli == nil {
+		return "", fmt.Errorf("Docker client not connected")
+	}
+	opts := container.LogsOptions{ShowStdout: true, ShowStderr: true}
+	rdr, err := c.cli.ContainerLogs(ctx, id, opts)
+	if err != nil {
+		return "", err
+	}
+	defer rdr.Close()
+	var out, errOut bytes.Buffer
+	_, _ = stdcopy.StdCopy(&out, &errOut, rdr)
+	return out.String() + errOut.String(), nil
+}
+
+// ContainerInspect returns the container inspection data (state, exit code, etc.).
+func (c *Client) ContainerInspect(ctx context.Context, id string) (status string, exitCode int, err error) {
+	if c.cli == nil {
+		return "", 0, fmt.Errorf("Docker client not connected")
+	}
+	inspect, err := c.cli.ContainerInspect(ctx, id)
+	if err != nil {
+		return "", 0, err
+	}
+	return inspect.State.Status, inspect.State.ExitCode, nil
+}
+
 // ContainerExists returns true if a container with the given name exists.
 func (c *Client) ContainerExists(ctx context.Context, name string) (bool, error) {
 	if c.cli == nil {
@@ -127,3 +157,4 @@ func (c *Client) ContainerExists(ctx context.Context, name string) (bool, error)
 	}
 	return false, nil
 }
+

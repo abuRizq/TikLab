@@ -67,7 +67,7 @@ func HotspotConfigCommands() []string {
 	return []string{
 		"/ip/hotspot/add",
 		"/ip/hotspot/profile/set",
-		"/ip/hotspot/user/profile/add",
+		"/ip/hotspot/user/profile/set",
 	}
 }
 
@@ -92,12 +92,12 @@ func ConfigureHotspot(c *Client) error {
 		return fmt.Errorf("set Hotspot profile: %w", err)
 	}
 
-	// Create default user profile with no bandwidth limit at Hotspot level
-	if _, err := c.Run("/ip/hotspot/user/profile/add",
-		"=name=default",
+	// Configure the built-in default user profile (already exists in RouterOS)
+	if _, err := c.Run("/ip/hotspot/user/profile/set",
+		"=numbers=default",
 		"=shared-users=1",
 	); err != nil {
-		return fmt.Errorf("add Hotspot user profile: %w", err)
+		return fmt.Errorf("set Hotspot user profile: %w", err)
 	}
 
 	return nil
