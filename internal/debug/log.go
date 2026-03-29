@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const logFile = "debug-294218.log"
+const logFile = "debug-06bbec.log"
 
 var mu sync.Mutex
 
@@ -21,7 +21,7 @@ func Log(location, message string, data map[string]interface{}, hypothesisId str
 		path = filepath.Join(wd, logFile)
 	}
 	entry := map[string]interface{}{
-		"sessionId":    "294218",
+		"sessionId":    "06bbec",
 		"location":     location,
 		"message":      message,
 		"data":         data,

@@ -34,6 +34,10 @@ func dialWithTimeout(addr, user, pass string, timeout time.Duration) (*routeros.
 // Client wraps the RouterOS API client.
 type Client struct {
 	conn *routeros.Client
+	host string
+	port int
+	user string
+	pass string
 }
 
 // NewClient creates a new RouterOS API client.
@@ -43,6 +47,10 @@ func NewClient() *Client {
 
 // Connect establishes a connection to the RouterOS API.
 func (c *Client) Connect(host string, port int, user, pass string) error {
+	c.host = host
+	c.port = port
+	c.user = user
+	c.pass = pass
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	conn, err := routeros.Dial(addr, user, pass)
 	if err != nil {
@@ -50,6 +58,46 @@ func (c *Client) Connect(host string, port int, user, pass string) error {
 	}
 	c.conn = conn
 	return nil
+}
+
+// Reconnect closes the current connection and establishes a new one.
+// Retries up to 10 times with 3s delays to tolerate transient disruption
+// (e.g. hotspot enable reconfiguring the network stack in emulation mode).
+func (c *Client) Reconnect() error {
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+	}
+	addr := net.JoinHostPort(c.host, strconv.Itoa(c.port))
+	var lastErr error
+	for i := 0; i < 10; i++ {
+		if i > 0 {
+			time.Sleep(3 * time.Second)
+		}
+		// #region agent log
+		debug.Log("routeros/client.go:Reconnect", "attempt", map[string]interface{}{
+			"attempt": i + 1,
+		}, "H1")
+		// #endregion
+		conn, err := dialWithTimeout(addr, c.user, c.pass, 10*time.Second)
+		if err != nil {
+			lastErr = err
+			// #region agent log
+			debug.Log("routeros/client.go:Reconnect", "attempt_failed", map[string]interface{}{
+				"attempt": i + 1, "err": err.Error(),
+			}, "H1")
+			// #endregion
+			continue
+		}
+		c.conn = conn
+		// #region agent log
+		debug.Log("routeros/client.go:Reconnect", "success", map[string]interface{}{
+			"attempt": i + 1,
+		}, "H1")
+		// #endregion
+		return nil
+	}
+	return fmt.Errorf("reconnect to RouterOS after 10 attempts: %w", lastErr)
 }
 
 // Close closes the connection.
@@ -197,6 +245,10 @@ func (c *Client) WaitForReady(host string, port int, user, pass string, timeout 
 			continue
 		}
 		c.conn = conn2
+		c.host = host
+		c.port = port
+		c.user = user
+		c.pass = pass
 		// #region agent log
 		debug.Log("routeros/client.go:WaitForReady", "success", map[string]interface{}{
 			"attempt": attempt, "elapsedSec": int(time.Since(start).Seconds()),

@@ -2,6 +2,9 @@ package routeros
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/tiklab/tiklab/internal/debug"
 )
 
 // DHCP and Hotspot configuration constants per data-model.md
@@ -74,7 +77,10 @@ func HotspotConfigCommands() []string {
 // ConfigureHotspot creates the Hotspot server configuration via RouterOS API.
 // Creates Hotspot server on bridge interface, uses DHCP pool, HTTP PAP login, default profile.
 func ConfigureHotspot(c *Client) error {
-	// Create Hotspot server
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step1_before_add", map[string]interface{}{}, "H1")
+	// #endregion
+
 	if _, err := c.Run("/ip/hotspot/add",
 		"=name=hotspot1",
 		"=interface="+dhcpInterface,
@@ -84,7 +90,10 @@ func ConfigureHotspot(c *Client) error {
 		return fmt.Errorf("add Hotspot server: %w", err)
 	}
 
-	// Set Hotspot profile for HTTP PAP login
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step2_after_add", map[string]interface{}{}, "H1")
+	// #endregion
+
 	if _, err := c.Run("/ip/hotspot/profile/set",
 		"=numbers=default",
 		"=login-by=http-pap",
@@ -92,13 +101,94 @@ func ConfigureHotspot(c *Client) error {
 		return fmt.Errorf("set Hotspot profile: %w", err)
 	}
 
-	// Configure the built-in default user profile (already exists in RouterOS)
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step3_after_profile", map[string]interface{}{}, "H1")
+	// #endregion
+
 	if _, err := c.Run("/ip/hotspot/user/profile/set",
 		"=numbers=default",
 		"=shared-users=1",
 	); err != nil {
 		return fmt.Errorf("set Hotspot user profile: %w", err)
 	}
+
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step4_after_userprofile", map[string]interface{}{}, "H1")
+	// #endregion
+
+	// IP binding bypasses hotspot auth for all traffic, keeping API/SSH/Winbox accessible
+	// after the hotspot is enabled. Simulated users authenticate via API, not captive portal.
+	if _, err := c.Run("/ip/hotspot/ip-binding/add",
+		"=address=0.0.0.0/0",
+		"=type=bypassed",
+		"=server=hotspot1",
+		"=comment=TikLab management bypass",
+	); err != nil {
+		// #region agent log
+		debug.Log("routeros/config.go:ConfigureHotspot", "ip_binding_failed", map[string]interface{}{
+			"err": err.Error(),
+		}, "H1")
+		// #endregion
+		return fmt.Errorf("add IP binding bypass: %w", err)
+	}
+
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step5_ip_binding_added", map[string]interface{}{}, "H1")
+	// #endregion
+
+	// Enabling the hotspot on ether1 disrupts the active API TCP connection
+	// (RouterOS reconfigures the interface's network stack, killing existing sessions).
+	// Use RouterOS scheduler to enable it asynchronously: the add returns immediately,
+	// the script runs after 2s on RouterOS's own scheduler thread, and removes itself.
+	if _, err := c.Run("/system/scheduler/add",
+		"=name=hs-enable",
+		"=on-event=/ip hotspot set hotspot1 disabled=no; /system scheduler remove hs-enable",
+		"=interval=2s",
+	); err != nil {
+		return fmt.Errorf("schedule Hotspot enable: %w", err)
+	}
+
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step6_scheduler_added", map[string]interface{}{}, "H1")
+	// #endregion
+
+	time.Sleep(5 * time.Second)
+
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step6b_before_reconnect", map[string]interface{}{}, "H1")
+	// #endregion
+
+	if err := c.Reconnect(); err != nil {
+		return fmt.Errorf("reconnect after Hotspot enable: %w", err)
+	}
+
+	// #region agent log
+	debug.Log("routeros/config.go:ConfigureHotspot", "step6c_reconnected", map[string]interface{}{}, "H1")
+	// #endregion
+
+	// #region agent log
+	hsPrint, errP := c.Run("/ip/hotspot/print")
+	props := map[string]string{}
+	printErr := ""
+	if errP != nil {
+		printErr = errP.Error()
+	}
+	if errP == nil && hsPrint != nil {
+		for _, re := range hsPrint.Re {
+			if re.Map["name"] == "hotspot1" {
+				for k, v := range re.Map {
+					props[k] = v
+				}
+				break
+			}
+		}
+	}
+	debug.Log("routeros/config.go:ConfigureHotspot", "step7_final_state", map[string]interface{}{
+		"printErr":         printErr,
+		"hotspot1Props":    props,
+		"hotspot1Disabled": props["disabled"],
+	}, "H1")
+	// #endregion
 
 	return nil
 }
@@ -152,17 +242,27 @@ func WipeConfig(c *Client) error {
 		return fmt.Errorf("remove queues: %w", err)
 	}
 
-	// 2. Remove Hotspot active sessions
+	// 2. Remove Hotspot IP bindings
+	if err := removeAll(c, "/ip/hotspot/ip-binding/print", "/ip/hotspot/ip-binding/remove"); err != nil {
+		return fmt.Errorf("remove hotspot ip-bindings: %w", err)
+	}
+
+	// 3. Remove Hotspot walled garden IP rules
+	if err := removeAll(c, "/ip/hotspot/walled-garden/ip/print", "/ip/hotspot/walled-garden/ip/remove"); err != nil {
+		return fmt.Errorf("remove hotspot walled-garden ip: %w", err)
+	}
+
+	// 4. Remove Hotspot active sessions
 	if err := removeAll(c, "/ip/hotspot/active/print", "/ip/hotspot/active/remove"); err != nil {
 		return fmt.Errorf("remove hotspot active: %w", err)
 	}
 
-	// 3. Remove Hotspot users
+	// 5. Remove Hotspot users
 	if err := removeAll(c, "/ip/hotspot/user/print", "/ip/hotspot/user/remove"); err != nil {
 		return fmt.Errorf("remove hotspot users: %w", err)
 	}
 
-	// 4. Remove Hotspot server (before profiles it references)
+	// 6. Remove Hotspot server (before profiles it references)
 	if err := removeAll(c, "/ip/hotspot/print", "/ip/hotspot/remove"); err != nil {
 		return fmt.Errorf("remove hotspot: %w", err)
 	}

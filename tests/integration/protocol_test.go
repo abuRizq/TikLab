@@ -99,6 +99,15 @@ func TestProtocolAccess(t *testing.T) {
 	if len(reply.Re) == 0 {
 		t.Error("Expected Hotspot to be configured")
 	}
+	for _, re := range reply.Re {
+		if re.Map["name"] != "hotspot1" {
+			continue
+		}
+		if re.Map["disabled"] == "true" {
+			t.Error("Hotspot hotspot1 is disabled; TikLab must provision with disabled=no so the server is active in WinBox")
+		}
+		break
+	}
 
 	// 4. Connect via SSH and run /ip/dhcp-server/print
 	t.Log("Connecting via SSH...")
