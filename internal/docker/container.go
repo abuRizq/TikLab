@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 )
+
+const tikLabNetworkName = "tiklab-net"
 
 // PortMapping defines host-to-container port mappings.
 type PortMapping struct {
@@ -158,3 +161,41 @@ func (c *Client) ContainerExists(ctx context.Context, name string) (bool, error)
 	return false, nil
 }
 
+// EnsureNetwork creates the tiklab-net bridge network if it doesn't already exist.
+// The second network interface (eth1) is required by the RouterOS base image's
+// entrypoint to enable QEMU user-mode networking with hostfwd port forwarding.
+// Without it, QEMU only uses TAP networking and ports are not forwarded to the VM.
+func (c *Client) EnsureNetwork(ctx context.Context) (string, error) {
+	if c.cli == nil {
+		return "", fmt.Errorf("Docker client not connected")
+	}
+	networks, err := c.cli.NetworkList(ctx, network.ListOptions{})
+	if err != nil {
+		return "", wrapConnectionError("network list", err)
+	}
+	for _, n := range networks {
+		if n.Name == tikLabNetworkName {
+			return n.ID, nil
+		}
+	}
+	resp, err := c.cli.NetworkCreate(ctx, tikLabNetworkName, network.CreateOptions{
+		Driver: "bridge",
+	})
+	if err != nil {
+		return "", wrapConnectionError("network create", err)
+	}
+	return resp.ID, nil
+}
+
+// ConnectToNetwork attaches a container to the given network.
+// Silently succeeds if the container is already connected.
+func (c *Client) ConnectToNetwork(ctx context.Context, containerID, networkID string) error {
+	if c.cli == nil {
+		return fmt.Errorf("Docker client not connected")
+	}
+	err := c.cli.NetworkConnect(ctx, networkID, containerID, &network.EndpointSettings{})
+	if err != nil && strings.Contains(err.Error(), "already exists") {
+		return nil
+	}
+	return err
+}

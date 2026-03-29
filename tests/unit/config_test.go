@@ -29,7 +29,7 @@ func TestHotspotConfigCommands(t *testing.T) {
 	expected := []string{
 		"/ip/hotspot/add",
 		"/ip/hotspot/profile/set",
-		"/ip/hotspot/user/profile/add",
+		"/ip/hotspot/user/profile/set",
 	}
 	if len(cmds) != len(expected) {
 		t.Fatalf("got %d commands, want %d", len(cmds), len(expected))

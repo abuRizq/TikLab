@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/tiklab/tiklab/internal/debug"
 	"github.com/tiklab/tiklab/internal/docker"
 )
 
@@ -84,9 +87,44 @@ func (m *Manager) Start(ctx context.Context, waitForReady WaitForReadyFunc) erro
 		return fmt.Errorf("Sandbox is already running")
 	}
 
+	// #region agent log
+	portAddr := net.JoinHostPort("127.0.0.1", strconv.Itoa(state.Ports.API))
+	ln, portErr := net.Listen("tcp", portAddr)
+	if portErr != nil {
+		debug.Log("manager.go:Start", "port_in_use_BEFORE_start", map[string]interface{}{
+			"port": state.Ports.API, "err": portErr.Error(),
+		}, "H4")
+	} else {
+		ln.Close()
+		debug.Log("manager.go:Start", "port_free_before_start", map[string]interface{}{
+			"port": state.Ports.API,
+		}, "H4")
+	}
+	// #endregion
+
 	if err := m.docker.StartContainer(ctx, state.ContainerID); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
+
+	// #region agent log
+	status, exitCode, _ := m.docker.ContainerInspect(ctx, state.ContainerID)
+	cid := state.ContainerID
+	if len(cid) > 12 {
+		cid = cid[:12]
+	}
+	debug.Log("manager.go:Start", "after_start_container", map[string]interface{}{
+		"containerID": cid,
+		"status":      status,
+		"exitCode":    exitCode,
+		"apiPort":     state.Ports.API,
+	}, "H1")
+	if status != "running" {
+		logs, _ := m.docker.ContainerLogs(ctx, state.ContainerID)
+		debug.Log("manager.go:Start", "container_not_running_logs", map[string]interface{}{
+			"logs": tailStr(logs, 2000),
+		}, "H1")
+	}
+	// #endregion
 
 	bootTimeout := kvmBootTimeout
 	emulationMode := false
@@ -106,9 +144,47 @@ func (m *Manager) Start(ctx context.Context, waitForReady WaitForReadyFunc) erro
 			log.Printf("[sandbox]   Ensure KVM is available: sudo modprobe kvm && ls /dev/kvm")
 		}
 	}
+	// #region agent log
+	debug.Log("manager.go:Start", "kvm_detection", map[string]interface{}{
+		"emulation":  emulationMode,
+		"timeoutSec": int(bootTimeout.Seconds()),
+	}, "H2")
+	// #endregion
 
 	if waitForReady != nil {
+		// #region agent log
+		done := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(10 * time.Second)
+			defer ticker.Stop()
+			check := 0
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					check++
+					st, ec, _ := m.docker.ContainerInspect(ctx, state.ContainerID)
+					logs, _ := m.docker.ContainerLogs(ctx, state.ContainerID)
+					debug.Log("manager.go:Start", "periodic_container_check", map[string]interface{}{
+						"check": check, "status": st, "exitCode": ec,
+						"logsTail": tailStr(logs, 2000),
+					}, "H1")
+				}
+			}
+		}()
+		// #endregion
+
 		if err := waitForReady(ctx, "127.0.0.1", state.Ports.API, bootTimeout); err != nil {
+			// #region agent log
+			close(done)
+			status2, exitCode2, _ := m.docker.ContainerInspect(ctx, state.ContainerID)
+			logs, _ := m.docker.ContainerLogs(ctx, state.ContainerID)
+			debug.Log("manager.go:Start", "waitForReady_FAILED", map[string]interface{}{
+				"status": status2, "exitCode": exitCode2, "err": err.Error(),
+				"logsTail": tailStr(logs, 3000),
+			}, "H1")
+			// #endregion
 			if emulationMode {
 				return fmt.Errorf("RouterOS failed to boot: QEMU is running without KVM hardware acceleration.\n\n"+
 					"  This makes boot extremely slow or impossible.\n\n"+
@@ -121,6 +197,9 @@ func (m *Manager) Start(ctx context.Context, waitForReady WaitForReadyFunc) erro
 			}
 			return err
 		}
+		// #region agent log
+		close(done)
+		// #endregion
 	}
 
 	now := time.Now()
@@ -191,3 +270,13 @@ func (m *Manager) Destroy(ctx context.Context) error {
 
 	return Delete()
 }
+
+// #region agent log
+func tailStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return "..." + s[len(s)-maxLen:]
+}
+
+// #endregion
